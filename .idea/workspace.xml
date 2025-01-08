@@ -5,18 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="31aa689a-50c8-4960-a275-8246383b2cae" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/pythonProject.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data_regression/financial_regression.csv" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/k_learns_example.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/regression_pytorch.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/regression_tensorflow.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scikit_learn.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/skl_regression.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,6 +22,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "ArtemElectr"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/ArtemElectr/diplomaProgect.git",
+    "accountId": "504279d7-9535-499f-9afb-db1c3178133a"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2
 }</component>
@@ -77,6 +78,19 @@
       <option name="presentableId" value="Default" />
       <updated>1736172864361</updated>
     </task>
+    <task id="LOCAL-00001" summary="create sklearn, pytorch, tensorflow regression,">
+      <option name="closed" value="true" />
+      <created>1736350089960</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1736350089960</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="create sklearn, pytorch, tensorflow regression," />
+    <option name="LAST_COMMIT_MESSAGE" value="create sklearn, pytorch, tensorflow regression," />
   </component>
 </project>
