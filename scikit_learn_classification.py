@@ -13,59 +13,38 @@ test_image_dir = 'archive/seg_test/seg_test'
 categories = os.listdir(train_image_dir)
 df = pd.DataFrame()
 df_t =  pd.DataFrame()
-
-arr = np.array([[[247, 247, 245],
-        [247, 247, 245],
-        [248, 248, 246],
-        [248, 248, 248],
-        [247, 247, 245],
-        [247, 247, 245]],
-       [[77, 76, 74],
-        [47, 46, 44],
-        [43, 42, 40],
-        [22, 17,  14],
-        [55, 50, 47],
-        [39, 34, 31]]])
-
-#print(arr)
-new_arr = arr.reshape(arr.shape[0], arr.shape[1] * arr.shape[2])
 #print(new_arr)
 def set_dataset(df1, image_dir):
-    np_arr = np.empty((150, 450))
+    np_arr = np.zeros((150, 450, 1))
+    # print(np_arr)
     arr = []
     count = 0
     for label, category in enumerate(categories):
         category_dir = os.path.join(image_dir, category) # к пути добавляется название папки
         for filename in os.listdir(category_dir): # для всех файлов в папке
             if filename.endswith('.jpg'):         # если это картинка(.jpg)
-                #im = iio.imread(os.path.join(category_dir, filename))
-                print(filename)
-                #print(im)
-               # print(im.shape)
                 pil_im = np.asarray(Image.open(os.path.join(category_dir, filename)))
-
-                reim = pil_im.reshape(pil_im.shape[0], pil_im.shape[1] * pil_im.shape[2])
-                print("New: ", reim.shape)
-                np_arr = np.append(np_arr, reim,)
-                print('arr: ', np_arr.shape)
-
-                count+=1
-                print('count: ', count)
-                if count == 2:
+                #print(pil_im.shape[0])
+                if pil_im.shape[0] != 150 or pil_im.shape[1] != 150:
                     break
-                #new_frame = pd.DataFrame(np.reshape(im,(im.size,)))
+                reim = pil_im.reshape(pil_im.shape[0], pil_im.shape[1] * pil_im.shape[2], 1)
+               # print("img: ", filename, '.Shape2: ', reim.shape)
+               # print('d2.shape', d2.shape)
+                #print("img: ", filename, '.Data2: ', reim)
+                #print('d2_data', d2)
+                np_arr = np.append(np_arr, reim, axis=2)
+                
+                #print('arr: ', np_arr.shape)
+                #print('np_arr: ', np_arr)
 
-                ##df1.to_csv('intel_images.csv')
-                break
-    np_arr =np.append(np_arr,arr)
-    print("np_arr: ", np_arr)
-    print("np_arr_shape: ", np_arr.shape)
-    #np.savetxt('arrIm.csv', np_arr)
-    #print('np_arr: ', np_arr)
-    #print('pd_read:', pd.read_csv('arrIm.csv', encoding='utf-8'))
+    return np_arr
 
 
-set_dataset(df, train_image_dir)
+
+ds = set_dataset(df, train_image_dir)
+print("np_arr: ", ds)
+print("np_arr_shape: ", ds.shape)
+print("np_arr_size: ", ds.size)
 #set_dataset(df_t, test_image_dir)
 #print(type(df))
 #print(df)
