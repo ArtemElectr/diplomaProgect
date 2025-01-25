@@ -12,9 +12,12 @@ import pathlib
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.metrics import Recall, Accuracy, Precision, F1Score
+from sklearn.metrics import f1_score
 
-data_dir = ''#r"F:\urban_diploma\pythonProject\archive\seg_train\seg_train"
-test_data_dir = ''#r'F:\urban_diploma\pythonProject\archive\seg_train\seg_train'
+data_dir = r"F:\urban_diploma\pythonProject\archive\seg_train\seg_train"
+test_data_dir = r'F:\urban_diploma\pythonProject\archive\seg_train\seg_train'
+pred_dir = r'F:\urban_diploma\pythonProject\archive\seg_pred\seg_pred'
 data_dir = pathlib.Path(data_dir)
 batch_size = 32
 img_height = 150
@@ -22,13 +25,11 @@ img_width = 150
 class_names = ['buildings', 'forest', 'glacier', 'mountain', 'sea', 'street']
 
 image_count = len(list(data_dir.glob('*/*.jpg')))  # Функция glob.glob () используется для поиска всех файлов,
-#print('1 ',image_count)
-print(data_dir)
 
-buildings = list(data_dir.glob('buildings/*'))
 
+#buildings = list(data_dir.glob('buildings/*'))
 #print(buildings)
-PIL.Image.open(str(buildings[0]))
+#PIL.Image.open(str(buildings[0]))
 
 train_ds = tf.keras.utils.image_dataset_from_directory(
     directory=data_dir,
@@ -59,19 +60,27 @@ val_ds = tf.keras.utils.image_dataset_from_directory(
   image_size=(img_height, img_width),
   batch_size=batch_size
 )
+
+test_ds = tf.keras.utils.image_dataset_from_directory(
+  directory=pred_dir,
+  labels=None,
+  label_mode='int',
+  seed=123,
+  image_size=(img_height, img_width),
+  batch_size=batch_size
+)
 class_names = train_ds.class_names
 
-plt.figure(figsize=(10, 10))
-for images, labels in train_ds.take(1):
-    for i in range(9):
-        ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(images[i].numpy().astype("uint8"))
-        plt.title(class_names[labels[i]])
-        plt.axis("off")
 
+# for images, labels in train_ds:
+#     #print(labels)
+#     for i in range(9):
+#         ax = plt.subplot(3, 3, i + 1)
+#         plt.imshow(images[i].numpy().astype("uint8"))
+#         plt.title(class_names[labels[i]])
+#         plt.axis("off")
     #plt.show()
 
-print('TRAIN: ', train_ds)
 for image_batch, labels_batch in train_ds:
     print(image_batch.shape)  # Это пакет из 32 изображений размером 180x180x3 (последний размер относится к цветовым каналам RGB).
     print(labels_batch.shape) # метки для изобр
@@ -81,6 +90,7 @@ AUTOTUNE = tf.data.AUTOTUNE
 
 train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
 val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+test_ds = test_ds.cache().prefetch(buffer_size=AUTOTUNE)
 
 normalization_layer = layers.Rescaling(1./255)
 normalized_ds = train_ds.map(lambda x, y: (normalization_layer(x), y))
@@ -93,9 +103,7 @@ num_classes = len(class_names)
 data_augmentation = keras.Sequential(
   [
     layers.RandomFlip("horizontal",
-                      input_shape=(img_height,
-                                  img_width,
-                                  3)),
+                      input_shape=(img_height, img_width, 3)),
     layers.RandomRotation(0.1),
     layers.RandomZoom(0.1),
   ]
@@ -120,11 +128,13 @@ model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
-model.summary()
+model.summary()  # Просмотрите все слои сети, используя метод модели Model.summary
+
+
 
 # Обучите модель
 
-epochs = 15
+epochs = 1
 history = model.fit(
   train_ds,
   validation_data=val_ds,
@@ -152,20 +162,58 @@ plt.plot(epochs_range, loss, label='Training Loss')
 plt.plot(epochs_range, val_loss, label='Validation Loss')
 plt.legend(loc='upper right')
 plt.title('Training and Validation Loss')
+
 plt.show()
+# проверка по метрикам на валидационных данных
+pred_ = model.predict(val_ds)
+val_ds_ = val_ds.unbatch()  # сбросить разделение датасета на batch(32)
 
-sunflower_url = r"F:\urban_diploma\pythonProject\archive\seg_pred\seg_pred\3.jpg"
+list_labels = []
+list_predict_labels = []
 
-img = tf.keras.utils.load_img(
-    sunflower_url, target_size=(img_height, img_width)
-)
-img_array = tf.keras.utils.img_to_array(img)
-img_array = tf.expand_dims(img_array, 0) # Create a batch
+for _, labels in val_ds_:
+    list_labels.append(int(labels))
 
-predictions = model.predict(img_array)
-score = tf.nn.softmax(predictions[0])
+for label in pred_:
+    score_ = tf.nn.softmax(label)
+    list_predict_labels.append(int(np.argmax(score_)))
 
-print(
-    "This image most likely belongs to {} with a {:.2f} percent confidence."
-    .format(class_names[np.argmax(score)], 100 * np.max(score))
-)
+
+accuracy = Accuracy()
+accuracy.update_state(list_labels, list_predict_labels)
+print(f'accuracy - {100 * float(accuracy.result()):.2f} %')
+recall = Recall()
+recall.update_state(list_labels, list_predict_labels)
+print(f'recall - {100 * float(recall.result()):.2f} %')
+precision = Precision()
+precision.update_state(list_labels, list_predict_labels)
+print(f'precision -  {100 * float(precision.result()):.2f} %')
+print(f'f1_score_diff - {f1_score(list_labels, list_predict_labels, average=None)}')
+
+# предсказание на тестовой сборке
+predict_data = model.predict(test_ds)
+
+for images in test_ds.take(1):
+    plt.figure(figsize=(10, 8))
+    for i in range(0, 20):
+        ax = plt.subplot(4, 5, i + 1)
+        plt.imshow(images[i].numpy().astype("uint8"))
+        score_ = tf.nn.softmax(predict_data[i])
+        plt.title(f'{class_names[np.argmax(score_)]} - {100 * np.max(score_):.0f} %')
+        plt.axis("off")
+        print(
+            "This image most likely belongs to {} with a {:.2f} percent confidence."
+            .format(class_names[np.argmax(score_)], 100 * np.max(score_))
+        )
+    plt.show()
+
+# отдельная картинка
+# sunflower_url = "https://storage.googleapis.com/download.tensorflow.org/example_images/592px-Red_sunflower.jpg"
+# sunflower_path = tf.keras.utils.get_file('Red_sunflower', origin=sunflower_url)
+#
+# img = tf.keras.utils.load_img(
+#     sunflower_path, target_size=(img_height, img_width)
+# )
+# img_array = tf.keras.utils.img_to_array(img)
+# img_array = tf.expand_dims(img_array, 0) # Create a batch
+

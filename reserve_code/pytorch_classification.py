@@ -18,7 +18,7 @@ from PIL import Image
 
 # CV2 — это библиотека для работы с изображениями в Python. Она предоставляет множество функций для выполнения различных
 # операций с изображениями, включая изменение размера, обрезку, поворот и другие преобразования
-EPOCH = 1
+
 # labels = ['buildings', 'forest', 'glacier', 'mountain','sea', 'street']
 img_size = 150
 batch_size = 32
@@ -49,8 +49,8 @@ pred_image_dir = 'archive/seg_pred/seg_pred'
 
 categories = os.listdir(image_dir)
 
-train_image_paths = []
-train_labels = []
+image_paths = []
+labels = []
 test_image_paths = []
 test_labels = []
 
@@ -64,16 +64,18 @@ def set_dataset(list_images, list_labels, image_dir):
               list_labels.append(label)              # в массив с метками добавить
 
 
-set_dataset(train_image_paths, train_labels, image_dir)   # обучающий датасет
-set_dataset(test_image_paths, test_labels, test_image_dir)  # тестовый датасет
+set_dataset(image_paths, labels, image_dir)  # обучающий датасет
+set_dataset(test_image_paths, test_labels, test_image_dir) # тестовый датасет
 
 label_encoder = LabelEncoder() # Закодируйте целевые метки со значением от 0 до n_классов-1(в ).
                     # Этот преобразователь следует использовать для кодирования целевых значений, т. е. y, а не входных X.
-train_labels = label_encoder.fit_transform(train_labels) #.fit_transform() Установите кодировщик меток и верните закодированные меток.
+labels = label_encoder.fit_transform(labels) #.fit_transform() Установите кодировщик меток и верните закодированные меток.
 test_labels = label_encoder.transform(test_labels)
 
-#train_paths, val_paths, train_labels, val_labels = train_test_split(image_paths, labels, test_size=0.2, random_state=42)
+train_paths, val_paths, train_labels, val_labels = train_test_split(image_paths, labels, test_size=0.2, random_state=42)
 
+print('val_lab - ', val_labels)
+print('val_lab_shape - ', val_labels.shape)
 
 transform_train = transforms.Compose([
     transforms.Resize(150),
@@ -83,15 +85,16 @@ transform_train = transforms.Compose([
 ])
 
 
-train_dataset = IntelImageDataset(train_image_paths, train_labels, transform=transform_train)
-val_dataset = IntelImageDataset(test_image_paths, test_labels, transform=transform_train)
+train_dataset = IntelImageDataset(train_paths, train_labels, transform=transform_train)
+val_dataset = IntelImageDataset(val_paths, val_labels, transform=transform_train)
+
 
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-
-#test_dataset = IntelImageDataset(test_image_paths, test_labels, transform=transform_train)
-#test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+print('val_loader: ', val_loader.dataset)
+test_dataset = IntelImageDataset(test_image_paths, test_labels, transform=transform_train)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 # functions to show an image
 
 
@@ -107,19 +110,18 @@ def imshow(img):
 
 #imshow(torchvision.utils.make_grid(images))
 
-print(' '.join(f'{categories[train_labels[j]]:5s}' for j in range(batch_size)))
+print(' '.join(f'{categories[labels[j]]:5s}' for j in range(batch_size)))
 ##  МОДЕЛЬ
-
 
 class Net(nn.Module):
     def __init__(self):
         super().__init__()
                                       # Conv2d Применяет двумерную свёртку к входному сигналу, состоящему из нескольких входных плоскостей.
-        self.conv1 = nn.Conv2d(3, 16, 5) # параметры: 3 - Количество каналов во входном изображении, 6 - количество каналов, создаваемых свёрткой, 5 - размер ядра свёртки
+        self.conv1 = nn.Conv2d(3, 32, 5) # параметры: 3 - Количество каналов во входном изображении, 6 - количество каналов, создаваемых свёрткой, 5 - размер ядра свёртки
         self.pool = nn.MaxPool2d(2, 2) #  MaxPool2 Применяет 2D-объединение по максимуму к входному сигналу, состоящему из нескольких входных плоскостей.
         # Параметры: kernel_size (Union[int, Tuple[int, int]]) — размер окна для вычисления максимума, stride (Union[int, Tuple[int, int]]) –  шаг окна. Значение по умолчанию — kernel_size
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.fc1 = nn.Linear(32 * 289 * 4, 1200) # Применяет аффинное линейное преобразование к входящим данным: y=xA^T+b.
+        self.conv2 = nn.Conv2d(32, 64, 5)
+        self.fc1 = nn.Linear(64 * 289 * 4, 1200) # Применяет аффинное линейное преобразование к входящим данным: y=xA^T+b.
         # Параметры in_features (int) – размер каждой входной выборки, out_features (int) – размер каждой выходной выборки,смещение (bool) — если установлено значение False, слой не будет
         # обучаться с учётом смещения. По умолчанию: True
         self.fc2 = nn.Linear(1200, 120)
@@ -129,7 +131,7 @@ class Net(nn.Module):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, 1) # flatten all dimensions except batch
-        x = x.view(-1, 32 * 289 * 4)
+        x = x.view(-1, 64 * 289 * 4)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -144,7 +146,7 @@ import torch.optim as optim
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)  # lr=0.001
 # обучение
-for epoch in range(EPOCH):  # loop over the dataset multiple times
+for epoch in range(30):  # loop over the dataset multiple times
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
         inputs, labels = data
@@ -167,21 +169,22 @@ print('Finished Training')
 PATH = './intel_image_v_0_1.pth'
 torch.save(net.state_dict(), PATH)
 
-# dataiter = iter(val_loader)
-# images, labels = next(dataiter)
-# imshow(torchvision.utils.make_grid(images))
-# print('GroundTruth: ', ' '.join(f'{categories[labels[j]]:5s}' for j in range(batch_size)))
+dataiter = iter(val_loader)
+images, labels = next(dataiter)
+
+imshow(torchvision.utils.make_grid(images))
+print('GroundTruth: ', ' '.join(f'{categories[labels[j]]:5s}' for j in range(batch_size)))
 
 net = Net()
 net.load_state_dict(torch.load(PATH, weights_only=True))
 
-#outputs = net(images)
+outputs = net(images)
 
-#_, predicted = torch.max(outputs, 1)
-#print(predicted)
-#print(type(predicted))
-#print('Predicted: ', ' '.join(f'{categories[predicted[j]]:5s}'
-#                              for j in range(batch_size)))
+_, predicted = torch.max(outputs, 1)
+print(predicted)
+print(type(predicted))
+print('Predicted: ', ' '.join(f'{categories[predicted[j]]:5s}'
+                              for j in range(batch_size)))
 correct = 0
 total = 0
 false_positives = 0
@@ -200,15 +203,8 @@ with torch.no_grad(): # torch.no_grad() — это контекстный мен
         # вычисляйте выходные данные, прогоняя изображения по сети
         outputs = net(images)
         # класс с самой высокой энергией - это то, что мы выбираем в качестве прогноза
-        _, predicted = torch.max(outputs, 1) # predicted - tensor, предсказанные в котором индексы классов
-        imshow(torchvision.utils.make_grid(images))
-        print('type - ', type(_))
-        print('DATA - ', _)
-        print('type2 - ', type(predicted))
-        print('DATA - ', predicted)
-        print('type2 - ', type(labels))
-        print('DATA - ', labels)
-        break
+        _, predicted = torch.max(outputs, 1)
+
         acc_(predicted, labels)
         precis_(predicted, labels)
         recall_(predicted, labels)
