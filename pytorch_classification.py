@@ -1,16 +1,12 @@
 import numpy as np
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 import torch
 import torchvision
 from torchmetrics import Accuracy, Precision, Recall, F1Score
 from torch.utils.data import DataLoader, Dataset
-#from ignite.engine import Engine
-#from ignite.metrics import Accuracy, Loss, RunningAverage, ConfusionMatrix
 from torchvision import transforms
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
 import os
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -18,7 +14,7 @@ from PIL import Image
 
 # CV2 — это библиотека для работы с изображениями в Python. Она предоставляет множество функций для выполнения различных
 # операций с изображениями, включая изменение размера, обрезку, поворот и другие преобразования
-EPOCH = 1
+EPOCH = 12
 # labels = ['buildings', 'forest', 'glacier', 'mountain','sea', 'street']
 img_size = 150
 batch_size = 32
@@ -43,6 +39,24 @@ class IntelImageDataset(Dataset):
         return image, label
 
 
+class IntelImagePredDataset(Dataset):
+    def __init__(self, image_paths, transform=None):
+        self.image_paths = image_paths
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image = Image.open(self.image_paths[idx])
+        label = idx
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
+
+
 image_dir = 'archive/seg_train/seg_train'
 test_image_dir = 'archive/seg_test/seg_test'
 pred_image_dir = 'archive/seg_pred/seg_pred'
@@ -56,16 +70,23 @@ test_labels = []
 
 
 def set_dataset(list_images, list_labels, image_dir):
-  for label, category in enumerate(categories):
-      category_dir = os.path.join(image_dir, category) # к пути добавляется название папки
-      for filename in os.listdir(category_dir): # для всех файлов в папке
-          if filename.endswith('.jpg'):         # если это картинка(.jpg)
-              list_images.append(os.path.join(category_dir, filename)) # в массив с путями добавить
-              list_labels.append(label)              # в массив с метками добавить
+    for label, category in enumerate(categories):
+        category_dir = os.path.join(image_dir, category) # к пути добавляется название папки
+
+        for filename in os.listdir(category_dir): # для всех файлов в папке
+            if filename.endswith('.jpg'):         # если это картинка(.jpg)
+                list_images.append(os.path.join(category_dir, filename)) # в массив с путями добавить
+                list_labels.append(label)              # в массив с метками добавить
+
+
+def set_pred_dataset(image_dir):
+    return [os.path.join(image_dir, filename) for filename in os.listdir(image_dir) if filename.endswith('.jpg')]
 
 
 set_dataset(train_image_paths, train_labels, image_dir)   # обучающий датасет
 set_dataset(test_image_paths, test_labels, test_image_dir)  # тестовый датасет
+predict_images = set_pred_dataset(pred_image_dir)
+
 
 label_encoder = LabelEncoder() # Закодируйте целевые метки со значением от 0 до n_классов-1(в ).
                     # Этот преобразователь следует использовать для кодирования целевых значений, т. е. y, а не входных X.
@@ -85,21 +106,18 @@ transform_train = transforms.Compose([
 
 train_dataset = IntelImageDataset(train_image_paths, train_labels, transform=transform_train)
 val_dataset = IntelImageDataset(test_image_paths, test_labels, transform=transform_train)
-
+pred_dataset = IntelImagePredDataset(predict_images, transform=transform_train)
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+pred_loader = DataLoader(pred_dataset, shuffle=False, num_workers=0)
 
-#test_dataset = IntelImageDataset(test_image_paths, test_labels, transform=transform_train)
-#test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 # functions to show an image
-
-
 def imshow(img):
     img = img / 2 + 0.5     # unnormalize
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.show()
+    #plt.show()
 
 
 #dataiter = iter(train_loader)  # Функция iter() в Python используется для получения итератора у итерируемых объектов, например списков, кортежей, строк
@@ -115,21 +133,21 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
                                       # Conv2d Применяет двумерную свёртку к входному сигналу, состоящему из нескольких входных плоскостей.
-        self.conv1 = nn.Conv2d(3, 16, 5) # параметры: 3 - Количество каналов во входном изображении, 6 - количество каналов, создаваемых свёрткой, 5 - размер ядра свёртки
+        self.conv1 = nn.Conv2d(3, 32, 5) # параметры: 3 - Количество каналов во входном изображении, 6 - количество каналов, создаваемых свёрткой, 5 - размер ядра свёртки
         self.pool = nn.MaxPool2d(2, 2) #  MaxPool2 Применяет 2D-объединение по максимуму к входному сигналу, состоящему из нескольких входных плоскостей.
         # Параметры: kernel_size (Union[int, Tuple[int, int]]) — размер окна для вычисления максимума, stride (Union[int, Tuple[int, int]]) –  шаг окна. Значение по умолчанию — kernel_size
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.fc1 = nn.Linear(32 * 289 * 4, 1200) # Применяет аффинное линейное преобразование к входящим данным: y=xA^T+b.
+        self.conv2 = nn.Conv2d(32, 64, 5)
+        self.fc1 = nn.Linear(64 * 289 * 4, 1200) # Применяет аффинное линейное преобразование к входящим данным: y=xA^T+b.
         # Параметры in_features (int) – размер каждой входной выборки, out_features (int) – размер каждой выходной выборки,смещение (bool) — если установлено значение False, слой не будет
         # обучаться с учётом смещения. По умолчанию: True
-        self.fc2 = nn.Linear(1200, 120)
-        self.fc3 = nn.Linear(120, 6)
+        self.fc2 = nn.Linear(1200, 1200)
+        self.fc3 = nn.Linear(1200, 6)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = torch.flatten(x, 1) # flatten all dimensions except batch
-        x = x.view(-1, 32 * 289 * 4)
+        x = x.view(-1, 64 * 289 * 4)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
@@ -201,14 +219,14 @@ with torch.no_grad(): # torch.no_grad() — это контекстный мен
         outputs = net(images)
         # класс с самой высокой энергией - это то, что мы выбираем в качестве прогноза
         _, predicted = torch.max(outputs, 1) # predicted - tensor, предсказанные в котором индексы классов
-        imshow(torchvision.utils.make_grid(images))
-        print('type - ', type(_))
-        print('DATA - ', _)
-        print('type2 - ', type(predicted))
-        print('DATA - ', predicted)
-        print('type2 - ', type(labels))
-        print('DATA - ', labels)
-        break
+       # imshow(torchvision.utils.make_grid(images))
+        #print('type - ', type(_))
+        #print('DATA - ', _)
+        #print('type2 - ', type(predicted))
+        #print('DATA - ', predicted)
+        #print('type2 - ', type(labels))
+        #print('DATA - ', labels)
+        #break
         acc_(predicted, labels)
         precis_(predicted, labels)
         recall_(predicted, labels)
@@ -266,3 +284,75 @@ with torch.no_grad():
 for classname, correct_count in correct_pred.items():
     accuracy = 100 * float(correct_count) / total_pred[classname]
     print(f'Accuracy for class: {classname:5s} is {accuracy:.1f} %')
+
+count = 0
+with torch.no_grad():
+    net.eval()
+    plt.figure(figsize=(10, 8))
+    for data in pred_dataset:
+        images, labels = data
+        outputs = net(images)
+        ax = plt.subplot(4, 5, count + 1)
+        _, predictions = torch.max(outputs, 1)
+        plt.title(f'{categories[predictions]}')
+        plt.axis("off")
+        imshow(images)
+
+        count += 1
+        if count > 19:
+            break
+    plt.show()
+
+# ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+with torch.no_grad():  # torch.no_grad() — это контекстный менеджер в PyTorch, который отключает вычисление градиентов.
+    # Он полезен на этапах оценки или тестирования модели, когда не нужно вычислять градиенты, что
+    # экономит память и вычислительные ресурсы.
+    acc_ = Accuracy(task='multiclass', num_classes=6)
+    precis_ = Precision(task='multiclass', num_classes=6)
+    recall_ = Recall(task='multiclass', num_classes=6)
+    f1_ = F1Score(task='multiclass', num_classes=6)
+
+    for data in val_loader:
+        images, labels = data
+        # вычисляйте выходные данные, прогоняя изображения по сети
+        outputs = net(images)
+        # класс с самой высокой энергией - это то, что мы выбираем в качестве прогноза
+        _, predicted = torch.max(outputs, 1)  # predicted - tensor, предсказанные в котором индексы классов
+        # imshow(torchvision.utils.make_grid(images))
+        # print('type - ', type(_))
+        # print('DATA - ', _)
+        # print('type2 - ', type(predicted))
+        # print('DATA - ', predicted)
+        # print('type2 - ', type(labels))
+        # print('DATA - ', labels)
+        # break
+        acc_(predicted, labels)
+        precis_(predicted, labels)
+        recall_(predicted, labels)
+        f1_(predicted, labels)
+
+        accuraty_value = acc_.compute()
+        precision_value = precis_.compute()
+        recall_value = recall_.compute()
+        f1_value = f1_.compute()
+        # print(f'Accuracy - {100*float(accuraty_value):.1f}')
+        # print(f'Precision - {100 * float(precision_value):.1f}')
+        # print(f'Recall - {100 * float(recall_value):.1f}')
+        # print(f'f1 - {100 * float(f1_value):.1f}')
+
+        correct += (predicted == labels).sum().item()
+        false_positives += torch.logical_and(predicted == 1, labels == 0).sum().item()
+        false_negatives += torch.logical_and(predicted == 0, labels == 1).sum().item()
+
+        total += labels.size(0)
+
+    # print(pred_arr)
+    accuracy = 100 * correct // total
+    precision = 100 * correct // (correct + false_positives)
+    recall = 100 * correct // (correct + false_negatives)
+    f1_score = 2 * (precision * recall) / (precision + recall)
+    print(f'Accuracy of the network on the 10000 test images: {accuracy} %')
+    print(f'Precision of the network on the 10000 test images: {precision} %')
+    print(f'Recall of the network on the 10000 test images: {recall} %')
+    print(f'Recall of the network on the 10000 test images: {f1_score}')
